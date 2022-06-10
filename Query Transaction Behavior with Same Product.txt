@@ -1,0 +1,43 @@
+with data_transac as (
+	select
+		date_trunc('week', tb_transaction.transaction_date) as week_date 
+		,tb_transaction.* 
+	from tb_transaction
+),
+data_customer as (
+	select * from tb_customer
+),
+data_transac_2 as (
+	select 
+		week_date
+		,transaction_date
+		,customer_id
+		,data_transac.product_id
+		,tp.product_category 
+		,quantity
+		,unit_price
+		,line_item_id
+		,row_number() over(partition by week_date,customer_id,tp.product_category order by transaction_date) as num_transac
+	from data_transac
+	left join tb_product tp on data_transac.product_id = tp.product_id
+		where data_transac.customer_id !=0
+),
+temp_data_final as (
+	select 
+		week_date
+		,customer_id
+		,product_category
+		,count(product_id) as num_transac 
+		,case when count(product_id) = 1 then '1 Same Product Category Transaction'
+		 when count(product_id) = 2 then '2 Same Product Category Transaction'
+		 when count(product_id) = 3 then '3 Same Product Category Transaction'
+		 when count(product_id) >3 then 'More 3 Same Product Category Transaction'
+		 else 'Null'
+		 end as transaction_category
+	from data_transac_2
+	group by 1,2,3
+)
+select 
+	temp_data_final.*
+	,concat(concat(num_transac, 'x '), product_category,' Product') as transaction_category_product
+from temp_data_final
